@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  
+  
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5">
+  
+  <title>Prometheus和Grafana监控系统部署 | zrhe2016</title>
+  <link rel="canonical" href="https://zrhe2016.bearblog.dev/prometheusgrafana/">
+  
+    <meta name="robots" content="noindex, nofollow">
+
+    <meta name="zrhe2016" content="look-for-the-bear-necessities">
+
+    <!-- Primary Meta Tags -->
+<meta name="title" content="Prometheus和Grafana监控系统部署">
+<meta name="description" content="
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+...">
+
+<!-- Open Graph / Facebook -->
+<meta property="og:site_name" content="zrhe2016">
+<meta property="og:title" content="Prometheus和Grafana监控系统部署">
+<meta property="og:type" content="article">
+<meta property="og:url" content="https://zrhe2016.bearblog.dev/prometheusgrafana/">
+<meta property="og:description" content="
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+...">
+<meta property="og:image" content="https://bear-images.sfo2.cdn.digitaloceanspaces.com/herman-1683556668-0.png">
+
+
+<!-- Twitter -->
+<meta property="twitter:card" content="summary">
+<meta property="twitter:url" content="https://zrhe2016.bearblog.dev/prometheusgrafana/">
+<meta property="twitter:title" content="Prometheus和Grafana监控系统部署">
+<meta property="twitter:description" content="
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+...">
+<meta property="twitter:image" content="https://bear-images.sfo2.cdn.digitaloceanspaces.com/herman-1683556668-0.png">
+
+
+
+<!-- Microdata -->
+<script type="application/ld+json">
+  {
+    "@context": "http://schema.org",
+    "@type": "article",
+    "name": "Prometheus和Grafana监控系统部署",
+    "headline": "Prometheus和Grafana监控系统部署",
+    "url": "https://zrhe2016.bearblog.dev/prometheusgrafana/",
+    "description": "
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+...",
+    "image": "https://bear-images.sfo2.cdn.digitaloceanspaces.com/herman-1683556668-0.png"
+  }
+</script>
+    <link rel="alternate" type="application/atom+xml" href="/feed/" title="zrhe2016">
+    <link rel="alternate" type="application/rss+xml" href="/feed/?type=rss" title="zrhe2016">
+
+  
+    
+
+    
+    <link rel="stylesheet" href="/static/pygmentify/css/default.min.css">
+  
+  
+  
+
+
+  <style>
+      
+      
+    
+:root {
+    --width: 720px;
+    --font-main: Verdana, sans-serif;
+    --font-secondary: Verdana, sans-serif;
+    --font-scale: 1em;
+    --background-color: #fff;
+    --heading-color: #222;
+    --text-color: #444;
+    --link-color: #3273dc;
+    --visited-color:  #8b6fcb;
+    --code-background-color: #f2f2f2;
+    --code-color: #222;
+    --blockquote-color: #222;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root {
+        --background-color: #01242e;
+        --heading-color: #eee;
+        --text-color: #ddd;
+        --link-color: #8cc2dd;
+        --visited-color:  #8b6fcb;
+        --code-background-color: #000;
+        --code-color: #ddd;
+        --blockquote-color: #ccc;
+    }
+}
+
+body {
+    font-family: var(--font-secondary);
+    font-size: var(--font-scale);
+    margin: auto;
+    padding: 20px;
+    max-width: var(--width);
+    text-align: left;
+    background-color: var(--background-color);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    line-height: 1.5;
+    color: var(--text-color);
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-main);
+    color: var(--heading-color);
+}
+
+a {
+    color: var(--link-color);
+    cursor: pointer;
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline; 
+}
+
+nav a {
+    margin-right: 8px;
+}
+
+strong, b {
+    color: var(--heading-color);
+}
+
+button {
+    margin: 0;
+    cursor: pointer;
+}
+
+time {
+ 	font-family: monospace;
+  	font-style: normal;
+  	font-size: 15px;
+}
+
+main {
+    line-height: 1.6;
+}
+
+table {
+    width: 100%;
+}
+
+hr {
+    border: 0;
+    border-top: 1px dashed;
+}
+
+img {
+    max-width: 100%;
+}
+
+code {
+    font-family: monospace;
+    padding: 2px;
+    background-color: var(--code-background-color);
+    color: var(--code-color);
+    border-radius: 3px;
+}
+
+blockquote {
+    border-left: 1px solid #999;
+    color: var(--code-color);
+    padding-left: 20px;
+    font-style: italic;
+}
+
+footer {
+    padding: 25px 0;
+    text-align: center;
+}
+
+.title:hover {
+    text-decoration: none;
+}
+
+.title h1 {
+    font-size: 1.5em;
+}
+
+.inline {
+    width: auto !important;
+}
+
+.highlight, .code {
+    padding: 1px 15px;
+    background-color: var(--code-background-color);
+    color: var(--code-color);
+    border-radius: 3px;
+    margin-block-start: 1em;
+    margin-block-end: 1em;
+    overflow-x: auto;
+}
+
+/* blog post list */
+ul.blog-posts {
+    list-style-type: none;
+    padding: unset;
+}
+
+ul.blog-posts li {
+    display: flex;
+}
+
+ul.blog-posts li span {
+    flex: 0 0 130px;
+}
+
+ul.blog-posts li a:visited {
+    color: var(--visited-color);
+}
+    .upvote-button {
+        padding: 0;
+        margin: 0;
+        border: 0;
+        background-color: inherit;
+        color: inherit;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    .upvote-button.upvoted {
+        color: salmon;
+    }
+    .upvote-count {
+        margin-top: -3px;
+    }
+
+      
+  </style>
+
+  
+    
+    <style>
+        body:hover {
+            shape-outside: url("/hit/cgPCjpskSrukynxzngAI/");
+        }
+    </style>
+    
+
+</head>
+
+<body class="post " onload="(function() { document.cookie = `timezone=${Intl.DateTimeFormat().resolvedOptions().timeZone};path=/`; })()">
+  
+  <header>
+    <a class="title" href="/">
+      <h1>
+        zrhe2016
+      </h1>
+    </a>
+    <nav>
+      <p><a href='/'>Home</a> <a href='/about-me/'>About me</a></p>
+
+    </nav>
+  </header>
+  <main>
+    
+
+    
+        
+    
+
+    
+        <h1>Prometheus和Grafana监控系统部署</h1>
+
+        <p>
+            <i>
+                <time datetime="2025-10-04T04:31Z">
+                    04 Oct, 2025
+                </time>
+            </i>
+        </p>
+    
+
+    <h2 id=>架构图</h2><div class="highlight"><pre><span></span>                   ┌───────────────────┐
+                   │     Grafana       │
+                   │   (Dashboard)     │
+                   │  Port: 3000       │
+                   └─────────┬─────────┘
+                             │
+        ┌────────────────────┼────────────────────┐
+        │                                         │
+        ▼                                         ▼
+┌───────────────────┐                     ┌───────────────────┐
+│   Prometheus      │                     │       Loki        │
+│ (Metrics DB)      │                     │   (Logs Store)    │
+│ Port: 9090        │                     │ Port: 3100        │
+└─────────┬─────────┘                     └───────────────────┘
+          │
+  ┌───────┼─────────┐
+  │                 │
+  ▼                 ▼
+┌───────────┐ ┌─────────────┐
+│ Node       │ │  cAdvisor   │
+│ Exporter   │ │ (Containers │
+│ (Host      │ │  Metrics)   │
+│ Metrics)   │ │ Port: 8080  │
+│ Port: 9100 │ └─────────────┘
+└───────────┘
+
+*node exporter 用于监控宿主机
+*cadvisor 用于监控容器
+*loki 用于日志存储
+</pre></div>
+<h2 id=>目录结构</h2><div class="highlight"><pre><span></span>docker-compose/
+│── docker-compose.base.yml
+│── docker-compose.monitoring.yml
+│── docker-compose.grafana.yml
+│── docker-compose.logging.yml
+│── prometheus/
+│    └── prometheus.yml
+│── grafana/
+│    └── datasources.yml
+│── promtail-config.yml
+</pre></div>
+<h2 id=>部署</h2><h3 id=docker-composebaseyml>docker-compose.base.yml</h3><div class="highlight"><pre><span></span>version: &#39;3.8&#39;
+
+networks:
+  monitoring:
+    driver: bridge    #指定网络类型为bridge
+
+volumes:
+  grafana-data:    #定义存储卷为grafana-data
+</pre></div>
+<h3 id=docker-composemonitoringyml>docker-compose.monitoring.yml</h3><div class="highlight"><pre><span></span>version: &#39;3.8&#39;
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    ports:
+      - &quot;9090:9090&quot;
+    volumes:
+      - ./prometheus:/etc/prometheus    #挂载./prometheus目录到容器内
+    command:
+      - &#39;--config.file=/etc/prometheus/prometheus.yml&#39;
+    networks:
+      - monitoring    #prometheus放入网络中
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - &quot;8080:8080&quot;
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:rw
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /cgroup:/cgroup:ro
+    networks:
+      - monitoring    #cadvisor放入网络中
+
+  node_exporter:
+    image: prom/node-exporter:latest
+    container_name: node_exporter
+    ports:
+      - &quot;9100:9100&quot;
+    networks:
+      - monitoring    #node_exporter放入网络中
+</pre></div>
+<h3 id=prometheusyml>prometheus.yml</h3><div class="highlight"><pre><span></span>global:
+  scrape_interval: 5s
+
+scrape_configs:
+  - job_name: &#39;prometheus&#39;
+    static_configs:
+      - targets: [&#39;prometheus:9090&#39;]
+
+  - job_name: &#39;node_exporter&#39;
+    static_configs:
+      - targets: [&#39;node_exporter:9100&#39;]
+
+  - job_name: &#39;cadvisor&#39;
+    static_configs:
+      - targets: [&#39;cadvisor:8080&#39;]
+</pre></div>
+<h3 id=docker-composegrafanayml>docker-compose.grafana.yml</h3><div class="highlight"><pre><span></span>version: &#39;3.8&#39;
+
+services:
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - &quot;3000:3000&quot;
+    volumes:
+      - ./grafana:/etc/grafana/provisioning/datasources
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    networks:
+      - monitoring
+</pre></div>
+<h3 id=docker-composeloggingyml>docker-compose.logging.yml</h3><div class="highlight"><pre><span></span>version: &#39;3.8&#39;
+
+services:
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - &quot;3100:3100&quot;
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - monitoring
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    volumes:
+      - /var/log:/var/log
+      - /var/lib/docker/containers:/var/lib/docker/containers
+      - ./promtail-config.yml:/etc/promtail/promtail-config.yml
+    command: -config.file=/etc/promtail/promtail-config.yml
+    networks:
+      - monitoring
+</pre></div>
+
+
+    
+
+    
+        
+
+        
+            <form id="upvote-form" action="/upvote/cgPCjpskSrukynxzngAI/" method="post" style="display: inline">
+    <small>
+        <input hidden name="uid" value="cgPCjpskSrukynxzngAI" style="display:none">
+        <input hidden name="title" value="Prometheus和Grafana监控系统部署" style="display:none">
+        <input type="hidden" name="csrfmiddlewaretoken" value="rcJWDf5SHLSkRmCFWfZz9gZYklPd32vqOvAEnTf7SYR1crQZT4giHfrKGLDeUndO">
+        
+        
+        <button
+            class="upvote-button"
+            title="Toast this post"
+        >
+        
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round" class="css-i6dzq1">
+                <polyline points="17 11 12 6 7 11"></polyline>
+                <polyline points="17 18 12 13 7 18"></polyline>
+            </svg>
+            <small class="upvote-count">1</small>
+        </button>
+    </small>        
+</form>
+
+<script>
+    let moved = false;
+    let pageLoaded = Date.now();
+
+    document.addEventListener('touchmove', () => moved = true);
+    document.addEventListener('mousemove', () => moved = true);
+
+    document.querySelector('#upvote-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+
+        if (moved) {
+            document.querySelector('input[name="title"]').value = "";
+        }
+        if (Date.now() - pageLoaded < 2000 || !moved) {
+            return;
+        }
+
+        const form = e.target;
+
+        fetch(form.action, {
+            method: form.method,
+            body: new FormData(form),
+        });
+        const button = form.querySelector('button')
+        button.disabled = true
+        button.style.color = "salmon"
+        const upvoteCount = document.querySelector('.upvote-count')
+        upvoteCount.innerHTML = `${(parseInt(upvoteCount.innerHTML.split(" ")[0]) + 1)}`
+    });
+</script>
+        
+    
+
+
+  </main>
+  <footer style="padding:25px 0;">
+    
+    
+    <span>
+        Powered by <a href="https://bearblog.dev">Bear ʕ•ᴥ•ʔ</a>
+    </span>
+
+  </footer>
+</body>
+</html>

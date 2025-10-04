@@ -1,0 +1,8 @@
+version: '3.8'
+
+networks:
+  monitoring:
+    driver: bridge    #指定网络类型为bridge
+
+volumes:
+  grafana-data:    #定义存储卷为grafana-data
