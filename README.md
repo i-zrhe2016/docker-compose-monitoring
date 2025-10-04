@@ -5,28 +5,43 @@ _04 Oct, 2025_
 本文覆盖 Prometheus、Grafana、Loki、Promtail 组合的部署步骤与运行校验，可用于在任何具备 Docker 能力的环境快速复现监控与日志栈。
 
 ## 架构图
-```mermaid
-flowchart TD
-    Grafana[Grafana<br/>Dashboards :3000]
-    Prometheus[Prometheus<br/>Metrics Store :9090]
-    Loki[Loki<br/>Logs Store :3100]
-    cAdvisor[cAdvisor<br/>Container Stats :8080]
-    NginxExporter[nginx_exporter<br/>Nginx Metrics :9113]
-    Nginx[Nginx Service<br/>Web :8081→80]
-    Promtail[Promtail<br/>Log Agent :9080]
-    HostLogs[(Host & Container Logs<br/>/var/log, docker/containers)]
-
-    Grafana -- metrics queries --> Prometheus
-    Grafana -- log queries --> Loki
-
-    cAdvisor -- scrape --> Prometheus
-    NginxExporter -- scrape --> Prometheus
-
-    Nginx -- exposes stub_status --> NginxExporter
-    Nginx -- access/error logs --> HostLogs
-
-    HostLogs -- tail --> Promtail
-    Promtail -- push --> Loki
+```
+                          +-----------+
+                          |  Grafana  |
+                          |   :3000   |
+                          +-----+-----+
+                                |
+                +---------------+---------------+
+                |                               |
+         metrics queries                   log queries
+                |                               |
+           +----v-----+                    +-----v-----+
+           |Prometheus|                    |    Loki   |
+           |  :9090   |                    |   :3100   |
+           +--+-----+-+                    +-----------+
+              ^     ^
+              |     |
+      scrape  |     |  scrape
+              |     |
+        +-----v-+  +v-------------+
+        |cAdvisor|  |nginx_exporter|
+        | :8080  |  |    :9113     |
+        +--------+  +-------+------+
+                          ^
+                          | stub_status
+                    +-----+-----+
+                    |   Nginx   |
+                    | :8081->80 |
+                    +-----+-----+
+                          |
+                          | access/error logs
+                          v
+                    +-----+-----+
+                    | Promtail  |
+                    |   :9080   |
+                    +-----+-----+
+                          |
+                          | push log streams -> Loki :3100
 ```
 
 ## 组件与端口
