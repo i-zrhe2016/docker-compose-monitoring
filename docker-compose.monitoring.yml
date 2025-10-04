@@ -26,11 +26,3 @@ services:
       - /cgroup:/cgroup:ro
     networks:
       - monitoring    #cadvisor放入网络中
-
-  node_exporter:
-    image: prom/node-exporter:latest
-    container_name: node_exporter
-    ports:
-      - "9100:9100"
-    networks:
-      - monitoring    #node_exporter放入网络中

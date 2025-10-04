@@ -61,7 +61,6 @@ show_nginx_metrics() {
 }
 
 check_http "Prometheus readiness" "http://localhost:9090/-/ready" "Prometheus Server is Ready."
-check_http "Node exporter metrics" "http://localhost:9100/metrics" "# HELP" 3 2
 check_http "cAdvisor health" "http://localhost:8080/healthz" "ok" 3 2
 check_http "Grafana login" "http://localhost:3000/login" "<!DOCTYPE html>" 3 2
 check_http "Grafana API health" "http://localhost:3000/api/health" '"database": "ok"' 3 2

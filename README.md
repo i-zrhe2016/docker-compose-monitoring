@@ -10,7 +10,6 @@ flowchart TD
     Grafana[Grafana<br/>Dashboards :3000]
     Prometheus[Prometheus<br/>Metrics Store :9090]
     Loki[Loki<br/>Logs Store :3100]
-    NodeExporter[Node Exporter<br/>Host Metrics :9100]
     cAdvisor[cAdvisor<br/>Container Stats :8080]
     NginxExporter[nginx_exporter<br/>Nginx Metrics :9113]
     Nginx[Nginx Service<br/>Web :8081→80]
@@ -20,7 +19,6 @@ flowchart TD
     Grafana -- metrics queries --> Prometheus
     Grafana -- log queries --> Loki
 
-    NodeExporter -- scrape --> Prometheus
     cAdvisor -- scrape --> Prometheus
     NginxExporter -- scrape --> Prometheus
 
@@ -29,10 +27,6 @@ flowchart TD
 
     HostLogs -- tail --> Promtail
     Promtail -- push --> Loki
-
-    Nginx -- runs on --> HostLogs
-    NodeExporter --- Nginx
-    cAdvisor --- Nginx
 ```
 
 ## 组件与端口
@@ -40,7 +34,6 @@ flowchart TD
 | --- | --- | --- |
 | Prometheus | 指标采集与存储 | `9090/tcp`
 | cAdvisor | Docker 容器与宿主机指标 | `8080/tcp`
-| Node Exporter | 宿主机指标 | `9100/tcp`
 | Grafana | 指标与日志可视化 | `3000/tcp`
 | Loki | 日志聚合 | `3100/tcp`
 | Promtail | 日志采集 Agent | `9080/tcp`（容器内）
@@ -117,13 +110,6 @@ services:
     networks:
       - monitoring
 
-  node_exporter:
-    image: prom/node-exporter:latest
-    container_name: node_exporter
-    ports:
-      - "9100:9100"
-    networks:
-      - monitoring
 ```
 
 ### prometheus/prometheus.yml
@@ -135,10 +121,6 @@ scrape_configs:
   - job_name: 'prometheus'
     static_configs:
       - targets: ['prometheus:9090']
-
-  - job_name: 'node_exporter'
-    static_configs:
-      - targets: ['node_exporter:9100']
 
   - job_name: 'cadvisor'
     static_configs:
@@ -371,13 +353,11 @@ docker compose \
 ```
 预期所有服务状态为 `Up`，端口映射符合组件表。
 
-### Prometheus 与 Node Exporter
+### Prometheus
 ```bash
 curl -sSf http://localhost:9090/-/ready
-curl -sSf http://localhost:9100/metrics | head -n 5
 ```
-- `/ready` 返回 `Prometheus Server is Ready.`
-- `9100/metrics` 输出 `# HELP` 等指标内容。
+`/ready` 返回 `Prometheus Server is Ready.`
 
 ### cAdvisor
 ```bash

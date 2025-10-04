@@ -355,19 +355,16 @@ ul.blog-posts li a:visited {
 │ Port: 9090        │                     │ Port: 3100        │
 └─────────┬─────────┘                     └───────────────────┘
           │
-  ┌───────┼─────────┐
-  │                 │
-  ▼                 ▼
-┌───────────┐ ┌─────────────┐
-│ Node       │ │  cAdvisor   │
-│ Exporter   │ │ (Containers │
-│ (Host      │ │  Metrics)   │
-│ Metrics)   │ │ Port: 8080  │
-│ Port: 9100 │ └─────────────┘
-└───────────┘
+  ┌───────┘
+  ▼
+┌─────────────┐
+│  cAdvisor   │
+│ (Containers │
+│  Metrics)   │
+│ Port: 8080  │
+└─────────────┘
 
-*node exporter 用于监控宿主机
-*cadvisor 用于监控容器
+*cAdvisor 用于监控容器
 *loki 用于日志存储
 </pre></div>
 <h2 id=>目录结构</h2><div class="highlight"><pre><span></span>docker-compose/
@@ -419,13 +416,6 @@ services:
     networks:
       - monitoring    #cadvisor放入网络中
 
-  node_exporter:
-    image: prom/node-exporter:latest
-    container_name: node_exporter
-    ports:
-      - &quot;9100:9100&quot;
-    networks:
-      - monitoring    #node_exporter放入网络中
 </pre></div>
 <h3 id=prometheusyml>prometheus.yml</h3><div class="highlight"><pre><span></span>global:
   scrape_interval: 5s
@@ -434,10 +424,6 @@ scrape_configs:
   - job_name: &#39;prometheus&#39;
     static_configs:
       - targets: [&#39;prometheus:9090&#39;]
-
-  - job_name: &#39;node_exporter&#39;
-    static_configs:
-      - targets: [&#39;node_exporter:9100&#39;]
 
   - job_name: &#39;cadvisor&#39;
     static_configs:
