@@ -334,13 +334,4 @@ docker exec grafana curl -s \
 ```
 预期日志包含 `tail routine: started`；查询结果返回带 `streams` 与 `values` 字段的 JSON。
 
-## 日常运维建议
-- **镜像更新**：执行 `docker compose ... pull` 后再 `up -d` 滚动更新。
-- **数据持久化**：Grafana 使用 `grafana-data` 卷；如需持久化 Prometheus/Loki 数据，请在 Compose 中追加卷映射。
-- **安全加固**：修改 Grafana 默认密码、为外部访问配置 HTTPS 反向代理、使用防火墙限制端口暴露。
 
-## 最近验证快照
-- `docker compose ps` 显示所有组件 `Up`，端口映射正确。
-- Prometheus `/-/ready`、cAdvisor `/healthz`、Grafana `/api/health`、Loki `/ready`、Promtail `/ready` 均返回健康状态。
-- Loki `labels` API 返回 `job`、`host`、`filename` 等标签。
-- Promtail 日志包含 `tail routine: started`，确认持续采集宿主与容器日志。
