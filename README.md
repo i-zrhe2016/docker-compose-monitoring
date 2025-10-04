@@ -426,6 +426,18 @@ curl -sSf http://localhost:9113/metrics | head -n 5
 ```
 预期包含 `# HELP nginx_up` 等指标行。
 
+### 自动化验证脚本
+```bash
+./scripts/verify-stack.sh
+```
+脚本会依次请求上述关键端点并汇总当前 Nginx 连接数、请求等指标。
+
+### Nginx 压力测试脚本
+```bash
+./scripts/nginx-bench.sh -c 50 -d 20s -t 4 -u http://localhost:8081/
+```
+脚本会优先调用 `hey`（若无则 `wrk`，再退到 `ab`），支持通过选项或环境变量调整 URL、并发数、压测时长/请求数、线程数。
+
 ### Promtail
 Promtail 端口未映射到宿主机，可借助 Grafana 容器验证：
 ```bash
