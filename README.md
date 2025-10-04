@@ -5,41 +5,47 @@ _04 Oct, 2025_
 本文覆盖 Prometheus、Grafana、Loki、Promtail 组合的部署步骤与运行校验，可用于在任何具备 Docker 能力的环境快速复现监控与日志栈。
 
 ## 架构图
-```mermaid
-flowchart TB
-    Grafana[Grafana\nDashboards :3000]
-    Prometheus[Prometheus\nMetrics Store :9090]
-    Loki[Loki\nLogs Store :3100]
-
-    subgraph DockerHost["Docker Host / monitoring network"]
-        Nginx[Nginx Service\nWeb :8081->80]
-        NginxExporter[nginx_exporter\nMetrics Endpoint :9113]
-        NodeExporter[Node Exporter\nHost Metrics :9100]
-        cAdvisor[cAdvisor\nContainer Stats :8080]
-        Promtail[Promtail\nLog Agent :9080]
-    end
-
-    HostLogs[(Host & Container Log Files\n/var/log/*, Docker JSON logs)]
-    DockerRuntime[(Docker Runtime Assets\nVolumes, docker.sock)]
-
-    Prometheus -- metrics API --> Grafana
-    Loki -- log queries --> Grafana
-
-    NodeExporter -- scrape :9100 --> Prometheus
-    cAdvisor -- scrape :8080 --> Prometheus
-    NginxExporter -- scrape :9113 --> Prometheus
-
-    Nginx -- emits metrics --> NginxExporter
-    Nginx -- access/error logs --> HostLogs
-
-    HostLogs -- tail --> Promtail
-    Promtail -- push --> Loki
-
-    DockerRuntime -- bind mounts --> HostLogs
-    DockerRuntime -- docker.sock --> Promtail
-    DockerRuntime -- /proc,/sys --> NodeExporter
-    DockerRuntime -- cgroups --> cAdvisor
-    DockerRuntime -- container FS --> Nginx
+```
+                                      +----------------------+                     
+                                      |       Grafana        |                     
+                                      | Dashboards & Alerts  |                     
+                                      | HTTP :3000           |                     
+                                      +----------+-----------+                     
+                                                 |                                 
+                                                 | Query (metrics/logs)            
+                              +------------------+------------------+              
+                              |                                     |              
+                      +-------v--------+                     +------v-------+     
+                      |  Prometheus    |                     |     Loki     |     
+                      | Metrics TSDB   |                     | Log Store    |     
+                      | HTTP :9090     |                     | HTTP :3100   |     
+                      +---+--------+---+                     +---+-----+----+     
+                          |        |                             ^     |          
+            HTTP scrape   |        |                             |     | Push log 
+                          |        |                             |     | streams  
+                 +--------v--+  +--v---------+           +-------+-----+------+    
+                 | Node       |  |  cAdvisor  |           |      Promtail      |    
+                 | Exporter   |  | Containers |           |  Log Agent :9080   |    
+                 | Host :9100 |  | Stats :8080|           +-------+-----+------+    
+                 +-----+------+  +-----+------+                   |     |         
+                       |               |                          |     | Tail log 
+   /proc,/sys mounts   |               | cgroup mounts            |     | files    
+                       |               |                          |     |         
++----------------------+---------------+--------------------------+-----+-----------------+
+|                      Docker Host Runtime (volumes, docker.sock, namespaces)            |
+|  - OS metrics (CPU, RAM, disk)                                                         |
+|  - Container FS mounts for Nginx                                                       |
+|  - Log directories (/var/log/*, docker/containers)                                     |
++----------------------+---------------+--------------------------+-----+-----------------+
+                       |               |                          |     |                 
+                       |               |                          |     |                 
+               +-------v------+ +------v-------+           +------+-----v-----+          
+               |    Nginx     | | nginx_exporter|          | Host & Container |          
+               | Web :8081->80| | Metrics :9113 |          | Log Files        |          
+               | Access/Error | +---------------+          | /var/log/*, etc. |          
+               +-------+------+         ^                   +-----------+------+          
+                       |                | scrape                       |                 
+                       +----------------+-------------------------------+                 
 ```
 
 ## 组件与端口
