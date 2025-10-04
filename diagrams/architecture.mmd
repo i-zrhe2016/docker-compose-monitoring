@@ -1,0 +1,27 @@
+flowchart TD
+    Grafana[Grafana\nDashboards :3000]
+    Prometheus[Prometheus\nMetrics Store :9090]
+    Loki[Loki\nLogs Store :3100]
+    NodeExporter[Node Exporter\nHost Metrics :9100]
+    cAdvisor[cAdvisor\nContainer Stats :8080]
+    NginxExporter[nginx_exporter\nNginx Metrics :9113]
+    Nginx[Nginx Service\nWeb :8081→80]
+    Promtail[Promtail\nLog Agent :9080]
+    HostLogs[(Host & Container Logs\n/var/log, docker/containers)]
+
+    Grafana -- metrics queries --> Prometheus
+    Grafana -- log queries --> Loki
+
+    NodeExporter -- scrape --> Prometheus
+    cAdvisor -- scrape --> Prometheus
+    NginxExporter -- scrape --> Prometheus
+
+    Nginx -- exposes stub_status --> NginxExporter
+    Nginx -- access/error logs --> HostLogs
+
+    HostLogs -- tail --> Promtail
+    Promtail -- push --> Loki
+
+    Nginx -- runs on --> HostLogs
+    NodeExporter --- Nginx
+    cAdvisor --- Nginx
