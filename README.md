@@ -45,6 +45,8 @@ _04 Oct, 2025_
 | Grafana | 指标与日志可视化 | `3000/tcp`
 | Loki | 日志聚合 | `3100/tcp`
 | Promtail | 日志采集 Agent | `9080/tcp`（容器内）
+| Nginx | 示例业务服务 | `8081->80/tcp`
+| nginx_exporter | Nginx 指标暴露 | `9113/tcp`
 
 ## 目录结构
 ```
@@ -53,11 +55,14 @@ docker-compose/
 │── docker-compose.monitoring.yml
 │── docker-compose.grafana.yml
 │── docker-compose.logging.yml
+│── docker-compose.app.yml
 │── prometheus/
 │    └── prometheus.yml
 │── grafana/
 │    └── datasources.yml
 │── promtail-config.yml
+│── nginx/
+│    └── nginx.conf
 │── prometheusgrafana.html
 │── README.md
 ```
@@ -186,6 +191,71 @@ services:
       - monitoring
 ```
 
+### docker-compose.app.yml
+```yaml
+version: '3.8'
+
+services:
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: nginx
+    ports:
+      - "8081:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - monitoring
+
+  nginx_exporter:
+    image: nginx/nginx-prometheus-exporter:0.11.0
+    container_name: nginx_exporter
+    command:
+      - -nginx.scrape-uri=http://nginx/stub_status
+    ports:
+      - "9113:9113"
+    depends_on:
+      - nginx
+    networks:
+      - monitoring
+```
+
+### nginx/nginx.conf
+```nginx
+worker_processes auto;
+
+error_log /var/log/nginx/error.log warn;
+
+pid /var/run/nginx.pid;
+
+events {
+    worker_connections 1024;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+
+    sendfile        on;
+    keepalive_timeout  65;
+
+    server {
+        listen 80;
+        server_name _;
+
+        location / {
+            root   /usr/share/nginx/html;
+            index  index.html index.htm;
+        }
+
+        location /stub_status {
+            stub_status;
+            access_log off;
+            allow all;
+        }
+    }
+}
+```
+
 ### grafana/datasources.yml
 ```yaml
 apiVersion: 1
@@ -260,13 +330,22 @@ docker compose \
 ```
 Promtail 通过配置文件自动采集宿主机与容器日志并推送到 Loki。
 
+### 启动示例服务（Nginx）
+```bash
+docker compose \
+  -f docker-compose.base.yml \
+  -f docker-compose.app.yml up -d
+```
+示例服务默认监听 `http://localhost:8081`，Nginx exporter 暴露指标 `http://localhost:9113/metrics`。
+
 ### 一次性启动全部组件
 ```bash
 docker compose \
   -f docker-compose.base.yml \
   -f docker-compose.monitoring.yml \
   -f docker-compose.grafana.yml \
-  -f docker-compose.logging.yml up -d
+  -f docker-compose.logging.yml \
+  -f docker-compose.app.yml up -d
 ```
 
 ### 停止与清理（可选）
@@ -275,7 +354,8 @@ docker compose \
   -f docker-compose.base.yml \
   -f docker-compose.monitoring.yml \
   -f docker-compose.grafana.yml \
-  -f docker-compose.logging.yml down
+  -f docker-compose.logging.yml \
+  -f docker-compose.app.yml down
 ```
 命令不会自动删除 `grafana-data` 卷，如需释放空间请手动移除。
 
@@ -322,6 +402,18 @@ curl -s "http://localhost:3100/loki/api/v1/labels"
 - `/ready` 返回 `ready`
 - `labels` 接口状态为 `success`
 
+### 示例服务（Nginx）
+```bash
+curl -sSf http://localhost:8081 | head -n 5
+```
+默认首页返回 Nginx 欢迎页面片段。
+
+### Nginx Exporter
+```bash
+curl -sSf http://localhost:9113/metrics | head -n 5
+```
+预期包含 `# HELP nginx_up` 等指标行。
+
 ### Promtail
 Promtail 端口未映射到宿主机，可借助 Grafana 容器验证：
 ```bash
@@ -337,4 +429,14 @@ docker exec grafana curl -s \
 ```
 预期日志包含 `tail routine: started`；查询结果返回带 `streams` 与 `values` 字段的 JSON。
 
+## 日常运维建议
+- **镜像更新**：执行 `docker compose ... pull` 后再 `up -d` 滚动更新。
+- **数据持久化**：Grafana 使用 `grafana-data` 卷；如需持久化 Prometheus/Loki/Nginx 日志，请在 Compose 中追加卷映射。
+- **安全加固**：修改 Grafana 默认密码、为外部访问配置 HTTPS 反向代理、使用防火墙限制端口暴露。
 
+## 最近验证快照
+- `docker compose ps` 显示监控、日志与示例服务组件均为 `Up`，端口映射正确。
+- Prometheus `/-/ready`、cAdvisor `/healthz`、Grafana `/api/health`、Loki `/ready`、Promtail `/ready` 均返回健康状态。
+- Loki `labels` API 返回 `job`、`host`、`filename` 等标签。
+- Promtail 日志包含 `tail routine: started`，确认持续采集宿主与容器日志。
+- 示例服务 Nginx 可通过 `http://localhost:8081` 访问，`nginx_exporter` 指标中 `nginx_up` 为 `1`。
