@@ -12,7 +12,7 @@ NET_NAME=${NET_NAME:-prometheus-grafana-loki-docker-compose_monitoring}
 ensure_network() {
   if ! docker network ls --format '{{.Name}}' | grep -qx "$NET_NAME"; then
     echo "Creating network $NET_NAME ..."
-    docker network create -d bridge "$NET_NAME" >/devnull || true
+    docker network create -d bridge "$NET_NAME" >/dev/null || true
   fi
 }
 
@@ -43,4 +43,3 @@ echo "Master ready. Running sanity queries..."
 docker exec mysql-master mysql -uroot -prootpass -e "SELECT VERSION() AS version; SHOW DATABASES; SHOW MASTER STATUS; USE appdb; SELECT * FROM items;" || true
 
 echo "Done: master is up and initialized."
-

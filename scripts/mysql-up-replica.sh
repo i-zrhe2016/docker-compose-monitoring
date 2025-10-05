@@ -20,7 +20,7 @@ esac
 ensure_network() {
   if ! docker network ls --format '{{.Name}}' | grep -qx "$NET_NAME"; then
     echo "Creating network $NET_NAME ..."
-    docker network create -d bridge "$NET_NAME" >/devnull || true
+    docker network create -d bridge "$NET_NAME" >/dev/null || true
   fi
 }
 
@@ -63,4 +63,3 @@ docker exec "$svc" mysql -uroot -prootpass -e "SELECT COUNT(*) AS rows_demo FROM
 docker exec "$svc" mysql -uroot -prootpass -e "SELECT COUNT(*) AS rows_demo2 FROM demo2.repcheck2" 2>/dev/null || true
 
 echo "Done: $svc configured and verified."
-

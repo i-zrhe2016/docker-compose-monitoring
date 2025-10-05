@@ -276,47 +276,117 @@ docker exec grafana curl -s \
 ## MySQL 一主两从部署（逐步部署与验证）
 以下示例使用 MySQL 8.4，root 密码与复制账号仅用于演示，请勿用于生产。
 
-环境准备
-- 默认复用 `monitoring` 网络。如未创建，先执行：
+前置条件
+- 安装 Docker 与 Docker Compose v2：
+```bash
+docker --version && docker compose version
+```
+- 监控网络 `monitoring`：本仓库的脚本会在缺失时自动创建；或手动先创建：
 ```bash
 docker compose -f docker-compose.base.yml up -d
 ```
 
-构建镜像（一次性）
+步骤 0：构建镜像（部署 + 验证）
+- 部署：
 ```bash
 ./scripts/mysql-build.sh
 ```
+- 验证：
+```bash
+docker images | egrep "local/mysql-(master|replica):8.4"
+```
 
-步骤 1：启动主库并验证
+步骤 1：启动主库（部署 + 验证）
+- 部署：
 ```bash
 ./scripts/mysql-up-master.sh
 ```
-主库初始化动作（自动完成）：
-- 创建复制用户 `repl`/`replpass`
-- 创建库表 `appdb.items` 并写入 `init-row`
+- 验证：
+```bash
+# 1) 容器状态
+docker ps --format 'table {{.Names}}\t{{.Status}}' | grep mysql-master
 
-步骤 2：启动从库1并建立复制
+# 2) 基础健康检查与主库信息（版本、GTID、二进制日志）
+docker exec mysql-master mysql -uroot -prootpass -e "\
+SELECT VERSION() AS version; \
+SHOW VARIABLES LIKE 'gtid_mode'; \
+SHOW MASTER STATUS; \
+SHOW DATABASES; \
+USE appdb; \
+SELECT * FROM items;"
+```
+期望：返回一条 `appdb.items` 的 `init-row` 记录，`gtid_mode=ON`，`SHOW MASTER STATUS` 有 `File`/`Position`/`Executed_Gtid_Set`。
+
+步骤 2：启动从库1并建立复制（部署 + 验证）
+- 部署：
 ```bash
 ./scripts/mysql-up-replica.sh 1
 ```
+- 验证：
+```bash
+# 1) 容器状态
+docker ps --format 'table {{.Names}}\t{{.Status}}' | grep mysql-replica1
 
-步骤 3：启动从库2并建立复制（同上）
+# 2) 复制线程与延迟
+docker exec mysql-replica1 mysql -uroot -prootpass -e "SHOW REPLICA STATUS\\G" | \
+egrep "Replica_IO_Running:|Replica_SQL_Running:|Seconds_Behind_Source:|Auto_Position:"
+```
+期望：`Replica_IO_Running: Yes`、`Replica_SQL_Running: Yes`、`Seconds_Behind_Source` 为 0 或较小，`Auto_Position: 1`。
+
+步骤 3：启动从库2并建立复制（部署 + 验证）
+- 部署：
 ```bash
 ./scripts/mysql-up-replica.sh 2
 ```
+- 验证：
+```bash
+docker exec mysql-replica2 mysql -uroot -prootpass -e "SHOW REPLICA STATUS\\G" | \
+egrep "Replica_IO_Running:|Replica_SQL_Running:|Seconds_Behind_Source:|Auto_Position:"
+```
 
-步骤 4：写入与校验（主写从读）
+步骤 4：主写从读验证（部署 + 验证）
+- 部署：
 ```bash
 ./scripts/mysql-create-demo.sh
 ```
+- 验证（可单独再次核对）：
+```bash
+docker exec mysql-master   mysql -uroot -prootpass -e "SELECT COUNT(*) AS m_demo  FROM demo.repcheck;  SELECT COUNT(*) AS m_demo2  FROM demo2.repcheck2;"
+docker exec mysql-replica1 mysql -uroot -prootpass -e "SELECT COUNT(*) AS r1_demo FROM demo.repcheck; SELECT COUNT(*) AS r1_demo2 FROM demo2.repcheck2;"
+docker exec mysql-replica2 mysql -uroot -prootpass -e "SELECT COUNT(*) AS r2_demo FROM demo.repcheck; SELECT COUNT(*) AS r2_demo2 FROM demo2.repcheck2;"
+```
+期望：三台返回的行数一致（例如 demo=4、demo2=6）。
 
-常见问题与排查
-- 复制未建立：再次执行 `SHOW REPLICA STATUS\G`，检查 `Last_IO_Error` / `Last_SQL_Error`
-- 认证失败：确认主库已创建复制用户（master 初始化脚本），或重置用户口令
-- GTID 未开启：确保 master/replica 配置中 `gtid_mode=ON`、`enforce_gtid_consistency=ON`
-- 主从时钟漂移：容器时间一般跟宿主机同步，如有偏差请校正宿主机时间
+常见问题与排查（含手动修复命令）
+- 复制未建立或报错：查看详细错误
+```bash
+docker exec mysql-replica1 mysql -uroot -prootpass -e "SHOW REPLICA STATUS\\G" | egrep "Last_IO_Error:|Last_SQL_Error:|Retrieved_Gtid_Set:|Executed_Gtid_Set:"
+```
+- 手动重置并按 GTID 建立复制（以 replica1 为例）
+```bash
+docker exec -i mysql-replica1 mysql -uroot -prootpass <<'SQL'
+STOP REPLICA; RESET REPLICA ALL;
+CHANGE REPLICATION SOURCE TO
+  SOURCE_HOST='mysql-master',
+  SOURCE_USER='repl',
+  SOURCE_PASSWORD='replpass',
+  SOURCE_AUTO_POSITION=1,
+  GET_SOURCE_PUBLIC_KEY=1;
+START REPLICA;
+SQL
+```
+- 确认 GTID 已启用（主/从均应为 ON）
+```bash
+docker exec mysql-master   mysql -uroot -prootpass -e "SHOW VARIABLES LIKE 'gtid_mode';"
+docker exec mysql-replica1 mysql -uroot -prootpass -e "SHOW VARIABLES LIKE 'gtid_mode';"
+```
+- 网络与名称解析：
+```bash
+docker network ls | grep monitoring
+docker exec mysql-replica1 getent hosts mysql-master
+```
 
-附：查看复制状态
+附：快速查看复制状态
 ```bash
 ./scripts/mysql-status.sh
 ```
