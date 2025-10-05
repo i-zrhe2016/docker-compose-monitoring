@@ -215,59 +215,7 @@ docker compose \
 命令不会自动删除 `grafana-data` 卷，如需释放空间请手动移除。
 
 ## 验证步骤
-确保容器在本目录下启动。
-
-### Compose 服务状态
-```bash
-docker compose \
-  -f docker-compose.base.yml \
-  -f docker-compose.monitoring.yml \
-  -f docker-compose.grafana.yml \
-  -f docker-compose.logging.yml ps
-```
-预期所有服务状态为 `Up`，端口映射符合组件表。
-
-### Prometheus
-```bash
-curl -sSf http://localhost:9090/-/ready
-```
-`/ready` 返回 `Prometheus Server is Ready.`
-
-### cAdvisor
-```bash
-curl -sSf http://localhost:8080/healthz
-```
-返回 `ok` 即表示健康。
-
-### Grafana
-```bash
-curl -s http://localhost:3000/login | head -n 5
-curl -sSf http://localhost:3000/api/health
-```
-- 登录页返回 HTML 头部。
-- `/api/health` 返回 `{"database":"ok",...}` JSON。
-
-### Loki
-```bash
-curl -sSf http://localhost:3100/ready
-curl -s "http://localhost:3100/loki/api/v1/labels"
-```
-- `/ready` 返回 `ready`
-- `labels` 接口状态为 `success`
-
-### 示例服务（Nginx）
-```bash
-curl -sSf http://localhost:8081 | head -n 5
-```
-默认首页返回 Nginx 欢迎页面片段。
-
-### Nginx Exporter
-```bash
-curl -sSf http://localhost:9113/metrics | head -n 5
-```
-预期包含 `# HELP nginx_up` 等指标行。
-
-### 单容器快速验证（无本机依赖）
+  ### 单容器快速验证（无本机依赖）
 在 Linux 上可用一个临时容器跑完所有连通性检查，无需本机安装 curl：
 
 方式 A：host 网络（直接访问本机映射端口）
@@ -349,13 +297,6 @@ SH
 ### 故障排查小贴士
 - exporter 抓取失败：确认 `http://localhost:9113/metrics` 可访问，`nginx/nginx.conf` 中 `location /stub_status` 开放访问。
 - Nginx 指标不增长：先用上述一键脚本造流量，或自行 `hey -z 20s -c 50 http://localhost:8081/`。
-
-### Promtail
-Promtail 端口未映射到宿主机，可借助 Grafana 容器验证：
-```bash
-docker exec grafana curl -sSf http://promtail:9080/ready
-```
-返回 `Ready` 表示采集 Agent 正常。
 
 ### 日志推送验证（可选）
 ```bash
