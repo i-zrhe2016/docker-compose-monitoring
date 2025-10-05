@@ -6,7 +6,7 @@ set -euo pipefail
 # Requirements:
 # - curl
 # - jq or python3 (for parsing Prometheus JSON)
-# - One of: hey / wrk / ab (via scripts/nginx-bench.sh)
+# - One of: hey / wrk / ab (optional; falls back to curl)
 #
 # Defaults can be overridden via env or flags.
 #   PROM=http://localhost:9090
@@ -114,10 +114,7 @@ fle() {
 }
 
 dash_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)
-bench_script="$dash_dir/nginx-bench.sh"
 
-[ -x "$bench_script" ] || need bash  # ensure shell exists; script uses bash shebang
-[ -f "$bench_script" ] || fail "Missing $bench_script"
 
 info "Checking Prometheus readiness at $PROM/-/ready"
 curl -fsS "$PROM/-/ready" | grep -q "Prometheus Server is Ready." || fail "Prometheus not ready"
@@ -138,16 +135,24 @@ before=$(prom_scalar 'sum(nginx_http_requests_total)') || true
 printf 'Baseline requests: %s\n' "$before"
 
 info "Running load: conc=$CONCURRENCY duration=$DURATION url=$URL"
-if "$bench_script" -c "$CONCURRENCY" -d "$DURATION" -u "$URL"; then
-  :
+# Prefer hey > wrk > ab; else curl fallback
+if command -v hey >/dev/null 2>&1; then
+  printf 'Using tool: hey\n'
+  hey -z "$DURATION" -c "$CONCURRENCY" "$URL" || true
+elif command -v wrk >/dev/null 2>&1; then
+  printf 'Using tool: wrk\n'
+  wrk -t4 -c"$CONCURRENCY" -d"$DURATION" "$URL" || true
+elif command -v ab >/dev/null 2>&1; then
+  printf 'Using tool: ab\n'
+  # Approximate requests for ab (duration-independent):
+  REQS=$(( CONCURRENCY * 200 ))
+  ab -n "$REQS" -c "$CONCURRENCY" "$URL" || true
 else
-  info "nginx-bench.sh failed or no tool found; using curl fallback load"
-  # Parse duration seconds from values like 20s/30
+  info "No hey/wrk/ab found; using curl fallback load"
   duration_secs=$(printf '%s' "$DURATION" | sed -E 's/[[:space:]]//g; s/s$//I')
   [[ "$duration_secs" =~ ^[0-9]+$ ]] || duration_secs=15
   end_ts=$(( $(date +%s) + duration_secs ))
   while (( $(date +%s) < end_ts )); do
-    # Fire CONCURRENCY background curls per tick, then wait
     for ((i=0; i<CONCURRENCY; i++)); do
       curl -s -o /dev/null "$URL" &
     done

@@ -131,6 +131,8 @@ prometheus-grafana-loki-docker-compose/
 │── grafana/
 │    └── datasources.yml
 │── promtail-config.yml
+│── scripts/
+│    └── nginx-metrics-assert.sh
 │── nginx/
 │    └── nginx.conf
 │── prometheusgrafana.html
@@ -244,19 +246,7 @@ curl -sSf http://localhost:9113/metrics | head -n 5
 ```
 预期包含 `# HELP nginx_up` 等指标行。
 
-### 自动化验证脚本
-```bash
-./scripts/verify-stack.sh
-```
-脚本会依次请求上述关键端点并汇总当前 Nginx 连接数、请求等指标。
-
-### Nginx 压力测试脚本
-```bash
-./scripts/nginx-bench.sh -c 50 -d 20s -t 4 -u http://localhost:8081/
-```
-脚本会优先调用 `hey`（若无则 `wrk`，再退到 `ab`），支持通过选项或环境变量调整 URL、并发数、压测时长/请求数、线程数。
-
-### Nginx 自动压测 + PromQL 断言
+### 一键验证 Nginx 指标（压测 + PromQL）
 一键对 Nginx 进行短时压测，并基于 PromQL 校验指标是否按预期变化：
 ```bash
 ./scripts/nginx-metrics-assert.sh -c 50 -d 20s -u http://localhost:8081/
@@ -268,6 +258,21 @@ curl -sSf http://localhost:9113/metrics | head -n 5
 - `nginx_up == 1`
 - `sum(nginx_http_requests_total)` 在压测后增加量 ≥ `MIN_DELTA`（默认 10，可通过 `-m` 或环境变量覆盖）
 - 连接恒等式：`active == reading + writing + waiting`
+
+若本机安装了 `hey` 或 `wrk` 或 `ab`，脚本会优先调用这些工具造流量；若均未安装，会用 curl 循环作为回退方案。
+
+### 在 Grafana 中查看 Nginx 指标
+1) 打开 `http://localhost:3000` 登录（默认 `admin/admin`，建议立刻修改密码）。
+2) 左侧 `Explore` 选择数据源 `Prometheus`，输入以下 PromQL 直接查看：
+- 每秒请求数（QPS）：`sum(rate(nginx_http_requests_total[1m]))`
+- 活跃连接：`nginx_connections_active`
+- 连接详情：`nginx_connections_reading`, `nginx_connections_writing`, `nginx_connections_waiting`
+- 健康状态：`up{job="nginx_exporter"}`, `nginx_up`
+3) 或 `Dashboards → Import` 搜索并导入社区 Nginx Exporter 仪表盘（选择数据源为 Prometheus）。
+
+### 故障排查小贴士
+- exporter 抓取失败：确认 `http://localhost:9113/metrics` 可访问，`nginx/nginx.conf` 中 `location /stub_status` 开放访问。
+- Nginx 指标不增长：先用上述一键脚本造流量，或自行 `hey -z 20s -c 50 http://localhost:8081/`。
 
 ### Promtail
 Promtail 端口未映射到宿主机，可借助 Grafana 容器验证：
