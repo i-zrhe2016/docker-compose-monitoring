@@ -138,41 +138,59 @@ prometheus-grafana-loki-docker-compose/
 │── prometheusgrafana.html
 │── README.md
 ```
-## 部署流程
-以下命令可单独或一次性启动所有组件，默认使用 `monitoring` 网络与 `grafana-data` 卷。
+## 部署流程（逐步部署与验证）
+推荐按服务逐步部署：每启动一个服务，做一次连通性验证，再继续下一步。以下均默认使用 `monitoring` 网络与 `grafana-data` 卷（自动创建）。
 
-### 启动监控组件
+1) Prometheus（指标存储）
 ```bash
-docker compose \
-  -f docker-compose.base.yml \
-  -f docker-compose.monitoring.yml up -d
+docker compose -f docker-compose.base.yml -f docker-compose.monitoring.yml up -d prometheus
+curl -sSf http://localhost:9090/-/ready | grep -q "Prometheus Server is Ready." && echo OK
 ```
 
-### 启动 Grafana
+2) cAdvisor（容器与主机指标）
 ```bash
-docker compose \
-  -f docker-compose.base.yml \
-  -f docker-compose.grafana.yml up -d
+docker compose -f docker-compose.base.yml -f docker-compose.monitoring.yml up -d cadvisor
+curl -sSf http://localhost:8080/healthz | grep -q ok && echo OK
 ```
-Grafana 默认账号 `admin` / `admin`，首次登录后请修改密码。
 
-### 启动日志组件
+3) Grafana（可视化）
 ```bash
-docker compose \
-  -f docker-compose.base.yml \
-  -f docker-compose.logging.yml up -d
+docker compose -f docker-compose.base.yml -f docker-compose.grafana.yml up -d grafana
+curl -sSf http://localhost:3000/api/health | grep -q '"database": "ok"' && echo OK
 ```
-Promtail 通过配置文件自动采集宿主机与容器日志并推送到 Loki。
+登录 `http://localhost:3000`，默认账号 `admin/admin`，首次登录请修改密码。
 
-### 启动示例服务（Nginx）
+4) Loki（日志聚合）
 ```bash
-docker compose \
-  -f docker-compose.base.yml \
-  -f docker-compose.app.yml up -d
+docker compose -f docker-compose.base.yml -f docker-compose.logging.yml up -d loki
+curl -sSf http://localhost:3100/ready | grep -q ready && echo OK
 ```
-示例服务默认监听 `http://localhost:8081`，Nginx exporter 暴露指标 `http://localhost:9113/metrics`。
 
-### 一次性启动全部组件
+5) Promtail（日志采集）
+```bash
+docker compose -f docker-compose.base.yml -f docker-compose.logging.yml up -d promtail
+docker exec grafana curl -sSf http://promtail:9080/ready | grep -q Ready && echo OK
+```
+
+6) Nginx（示例服务）
+```bash
+docker compose -f docker-compose.base.yml -f docker-compose.app.yml up -d nginx
+curl -sSf http://localhost:8081 | grep -q "Welcome to nginx!" && echo OK
+```
+
+7) nginx_exporter（Nginx 指标）
+```bash
+docker compose -f docker-compose.base.yml -f docker-compose.app.yml up -d nginx_exporter
+curl -sSf http://localhost:9113/metrics | grep -q '^nginx_up ' && echo OK
+```
+
+8) Prometheus 抓取验证（可选）
+```bash
+curl -s "http://localhost:9090/api/v1/query?query=up%7Bjob%3D%22nginx_exporter%22%7D" | grep -q '"value"' && echo OK
+curl -s "http://localhost:9090/api/v1/query?query=nginx_up" | grep -q '"value"' && echo OK
+```
+
+如需一次性启动全部组件，仍可使用：
 ```bash
 docker compose \
   -f docker-compose.base.yml \
@@ -181,6 +199,9 @@ docker compose \
   -f docker-compose.logging.yml \
   -f docker-compose.app.yml up -d
 ```
+
+### 一次性启动全部组件（可选）
+如已完成逐步验证，亦可一条命令启动/重启全部服务（同上）。
 
 ### 停止与清理（可选）
 ```bash
