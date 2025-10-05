@@ -215,61 +215,6 @@ docker compose \
 命令不会自动删除 `grafana-data` 卷，如需释放空间请手动移除。
 
 ## 验证步骤
-  ### 单容器快速验证（无本机依赖）
-在 Linux 上可用一个临时容器跑完所有连通性检查，无需本机安装 curl：
-
-方式 A：host 网络（直接访问本机映射端口）
-```bash
-docker run --rm --network host curlimages/curl:8.9.1 sh -s <<'SH'
-set -eu
-check() {
-  name=$1 url=$2 needle=$3
-  printf "\n==> %s (%s)\n" "$name" "$url"
-  out=$(curl -sS -w "\n%{http_code}" "$url") || { echo "curl error"; exit 1; }
-  body=${out%$'\n'*}
-  code=${out##*$'\n'}
-  if [ "$code" = 200 ] && printf '%s' "$body" | grep -q "$needle"; then
-    echo "OK: $name"
-  else
-    echo "FAIL: $name (code=$code)"; printf '%s\n' "$body" | head -n 20; exit 1
-  fi
-}
-check "Prometheus readiness" "http://localhost:9090/-/ready" "Prometheus Server is Ready."
-check "Grafana API health" "http://localhost:3000/api/health" '"database": "ok"'
-check "Loki readiness" "http://localhost:3100/ready" "ready"
-check "Nginx welcome" "http://localhost:8081" "Welcome to nginx!"
-check "nginx_exporter metrics" "http://localhost:9113/metrics" "nginx_up"
-echo "\nAll checks passed."
-SH
-```
-
-方式 B：加入 Compose 网络（容器名直连，适用于非 Linux 环境）
-```bash
-# 如网络名不同，请以 `docker network ls | grep _monitoring` 为准
-NET=prometheus-grafana-loki-docker-compose_monitoring
-docker run --rm --network "$NET" curlimages/curl:8.9.1 sh -s <<'SH'
-set -eu
-check() {
-  name=$1 url=$2 needle=$3
-  printf "\n==> %s (%s)\n" "$name" "$url"
-  out=$(curl -sS -w "\n%{http_code}" "$url") || { echo "curl error"; exit 1; }
-  body=${out%$'\n'*}
-  code=${out##*$'\n'}
-  if [ "$code" = 200 ] && printf '%s' "$body" | grep -q "$needle"; then
-    echo "OK: $name"
-  else
-    echo "FAIL: $name (code=$code)"; printf '%s\n' "$body" | head -n 20; exit 1
-  fi
-}
-check "Prometheus readiness" "http://prometheus:9090/-/ready" "Prometheus Server is Ready."
-check "Grafana API health" "http://grafana:3000/api/health" '"database": "ok"'
-check "Loki readiness" "http://loki:3100/ready" "ready"
-check "Nginx welcome" "http://nginx" "Welcome to nginx!"
-check "nginx_exporter metrics" "http://nginx_exporter:9113/metrics" "nginx_up"
-echo "\nAll checks passed."
-SH
-```
-
 ### 一键验证 Nginx 指标（压测 + PromQL）
 一键对 Nginx 进行短时压测，并基于 PromQL 校验指标是否按预期变化：
 ```bash
