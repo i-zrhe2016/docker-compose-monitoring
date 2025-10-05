@@ -256,6 +256,19 @@ curl -sSf http://localhost:9113/metrics | head -n 5
 ```
 脚本会优先调用 `hey`（若无则 `wrk`，再退到 `ab`），支持通过选项或环境变量调整 URL、并发数、压测时长/请求数、线程数。
 
+### Nginx 自动压测 + PromQL 断言
+一键对 Nginx 进行短时压测，并基于 PromQL 校验指标是否按预期变化：
+```bash
+./scripts/nginx-metrics-assert.sh -c 50 -d 20s -u http://localhost:8081/
+```
+默认 Prometheus 地址 `http://localhost:9090`，可通过 `-s` 或环境变量 `PROM` 覆盖；
+需要 `curl` 与 `jq`（或 `python3`）解析 Prometheus JSON；
+断言内容包括：
+- `up{job="nginx_exporter"} >= 1`
+- `nginx_up == 1`
+- `sum(nginx_http_requests_total)` 在压测后增加量 ≥ `MIN_DELTA`（默认 10，可通过 `-m` 或环境变量覆盖）
+- 连接恒等式：`active == reading + writing + waiting`
+
 ### Promtail
 Promtail 端口未映射到宿主机，可借助 Grafana 容器验证：
 ```bash
