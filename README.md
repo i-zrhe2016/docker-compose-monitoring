@@ -76,13 +76,3 @@ docker compose \
   - 最近系统日志样本：`docker exec grafana curl -s "http://loki:3100/loki/api/v1/query?query={job=\"varlogs\"}&limit=5"`
 
 在 Grafana 中：左侧 Explore 选择数据源 `Prometheus` 或 `Loki`，即可交互式查询（PromQL/LogQL）。
-
-## 说明
-- 已删除与监控栈无关的示例应用（Nginx/exporter）与 MySQL 相关代码、脚本与文档。
-- `prometheus/prometheus.yml` 仅保留 Prometheus 自监控与 `cAdvisor` 抓取目标。
-- 如需增加业务 Exporter 或目标，请在 `prometheus/prometheus.yml` 追加对应 `job`。
-
-## 常见问题
-- 端口占用：确保 `9090`（Prometheus）、`3000`（Grafana）、`3100`（Loki）、`8080`（cAdvisor）未被占用。
-- 权限问题：Promtail 需要读取宿主 `/var/log` 与 `/var/lib/docker/containers`；在受限环境可能需要调整挂载或以 root 运行。
-
