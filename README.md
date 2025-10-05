@@ -126,6 +126,7 @@ prometheus-grafana-loki-docker-compose/
 │── docker-compose.grafana.yml
 │── docker-compose.logging.yml
 │── docker-compose.app.yml
+│── docker-compose.mysql.yml
 │── prometheus/
 │    └── prometheus.yml
 │── grafana/
@@ -135,6 +136,15 @@ prometheus-grafana-loki-docker-compose/
 │    └── nginx-metrics-assert.sh
 │── nginx/
 │    └── nginx.conf
+│── mysql/
+│    ├── master/
+│    │   ├── Dockerfile
+│    │   ├── master.cnf
+│    │   └── init/
+│    │       └── 01_init.sql
+│    └── replica/
+│        ├── Dockerfile
+│        └── replica.cnf
 │── prometheusgrafana.html
 │── README.md
 ```
@@ -262,3 +272,73 @@ docker exec grafana curl -s \
 - Loki `labels` API 返回 `job`、`host`、`filename` 等标签。
 - Promtail 日志包含 `tail routine: started`，确认持续采集宿主与容器日志。
 - 示例服务 Nginx 可通过 `http://localhost:8081` 访问，`nginx_exporter` 指标中 `nginx_up` 为 `1`。
+
+## MySQL 一主两从部署（逐步部署与验证）
+以下示例使用 MySQL 8.4，root 密码与复制账号仅用于演示，请勿用于生产。
+
+环境准备
+- 默认复用 `monitoring` 网络。如未创建，先执行：
+```bash
+docker compose -f docker-compose.base.yml up -d
+```
+
+构建镜像（一次性）
+```bash
+docker compose -f docker-compose.mysql.yml build
+```
+
+步骤 1：启动主库并验证
+```bash
+docker compose -f docker-compose.mysql.yml up -d mysql-master
+# 等健康检查通过（或稍等 10~20s）
+docker exec mysql-master mysql -uroot -prootpass -e "SELECT VERSION(); SHOW DATABASES;"
+```
+主库初始化动作（自动完成）：
+- 创建复制用户 `repl`/`replpass`
+- 创建库表 `appdb.items` 并写入 `init-row`
+
+步骤 2：启动从库1并建立复制
+```bash
+docker compose -f docker-compose.mysql.yml up -d mysql-replica1
+docker exec -i mysql-replica1 mysql -uroot -prootpass <<'SQL'
+CHANGE REPLICATION SOURCE TO
+  SOURCE_HOST='mysql-master',
+  SOURCE_USER='repl',
+  SOURCE_PASSWORD='replpass',
+  SOURCE_AUTO_POSITION=1;
+START REPLICA;
+SQL
+# 验证复制状态（应为 Yes/Yes）
+docker exec mysql-replica1 mysql -uroot -prootpass -e "SHOW REPLICA STATUS\\G" | egrep "Replica_IO_Running:|Replica_SQL_Running:"
+# 验证数据是否已同步 init-row
+docker exec mysql-replica1 mysql -uroot -prootpass -e "SELECT COUNT(*) FROM appdb.items;"
+```
+
+步骤 3：启动从库2并建立复制（同上）
+```bash
+docker compose -f docker-compose.mysql.yml up -d mysql-replica2
+docker exec -i mysql-replica2 mysql -uroot -prootpass <<'SQL'
+CHANGE REPLICATION SOURCE TO
+  SOURCE_HOST='mysql-master',
+  SOURCE_USER='repl',
+  SOURCE_PASSWORD='replpass',
+  SOURCE_AUTO_POSITION=1;
+START REPLICA;
+SQL
+docker exec mysql-replica2 mysql -uroot -prootpass -e "SHOW REPLICA STATUS\\G" | egrep "Replica_IO_Running:|Replica_SQL_Running:"
+```
+
+步骤 4：写入与校验（主写从读）
+```bash
+# 主库写入
+docker exec mysql-master   mysql -uroot -prootpass -e "INSERT INTO appdb.items(name) VALUES ('from-master-1'),('from-master-2');"
+# 从库读取（两边行数应一致）
+docker exec mysql-replica1 mysql -uroot -prootpass -e "SELECT COUNT(*) AS r1_rows FROM appdb.items;"
+docker exec mysql-replica2 mysql -uroot -prootpass -e "SELECT COUNT(*) AS r2_rows FROM appdb.items;"
+```
+
+常见问题与排查
+- 复制未建立：再次执行 `SHOW REPLICA STATUS\G`，检查 `Last_IO_Error` / `Last_SQL_Error`
+- 认证失败：确认主库已创建复制用户（master 初始化脚本），或重置用户口令
+- GTID 未开启：确保 master/replica 配置中 `gtid_mode=ON`、`enforce_gtid_consistency=ON`
+- 主从时钟漂移：容器时间一般跟宿主机同步，如有偏差请校正宿主机时间

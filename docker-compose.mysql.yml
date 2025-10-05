@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  mysql-master:
+    build:
+      context: ./mysql/master
+    image: local/mysql-master:8.4
+    container_name: mysql-master
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpass
+    command: ["mysqld", "--server-id=1"]
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - monitoring
+
+  mysql-replica1:
+    build:
+      context: ./mysql/replica
+    image: local/mysql-replica:8.4
+    container_name: mysql-replica1
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpass
+    command: ["mysqld", "--server-id=2", "--read_only=ON"]
+    depends_on:
+      - mysql-master
+    ports:
+      - "3308:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - monitoring
+
+  mysql-replica2:
+    build:
+      context: ./mysql/replica
+    image: local/mysql-replica:8.4
+    container_name: mysql-replica2
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpass
+    command: ["mysqld", "--server-id=3", "--read_only=ON"]
+    depends_on:
+      - mysql-master
+    ports:
+      - "3309:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-prootpass"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+    networks:
+      - monitoring
+
+networks:
+  monitoring:
+    external: true
+    name: prometheus-grafana-loki-docker-compose_monitoring
+
