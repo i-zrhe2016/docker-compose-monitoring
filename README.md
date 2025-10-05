@@ -1,4 +1,4 @@
-# Prometheus和Grafana监控系统部署与验证
+# Prometheus、Grafana、Loki、Promtail Docker Compose 监控日志栈部署与验证
 
 _04 Oct, 2025_
 
@@ -120,7 +120,7 @@ _04 Oct, 2025_
 
 ## 目录结构
 ```
-docker-compose/
+prometheus-grafana-loki-docker-compose/
 │── docker-compose.base.yml
 │── docker-compose.monitoring.yml
 │── docker-compose.grafana.yml
