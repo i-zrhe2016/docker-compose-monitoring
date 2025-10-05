@@ -1,5 +1,5 @@
 -- Create replication user and sample schema on master
-CREATE USER IF NOT EXISTS 'repl'@'%' IDENTIFIED WITH mysql_native_password BY 'replpass';
+CREATE USER IF NOT EXISTS 'repl'@'%' IDENTIFIED BY 'replpass';
 GRANT REPLICATION SLAVE ON *.* TO 'repl'@'%';
 FLUSH PRIVILEGES;
 
@@ -11,4 +11,3 @@ CREATE TABLE IF NOT EXISTS items (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 INSERT INTO items(name) VALUES ('init-row');
-

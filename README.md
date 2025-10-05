@@ -284,14 +284,12 @@ docker compose -f docker-compose.base.yml up -d
 
 构建镜像（一次性）
 ```bash
-docker compose -f docker-compose.mysql.yml build
+./scripts/mysql-build.sh
 ```
 
 步骤 1：启动主库并验证
 ```bash
-docker compose -f docker-compose.mysql.yml up -d mysql-master
-# 等健康检查通过（或稍等 10~20s）
-docker exec mysql-master mysql -uroot -prootpass -e "SELECT VERSION(); SHOW DATABASES;"
+./scripts/mysql-up-master.sh
 ```
 主库初始化动作（自动完成）：
 - 创建复制用户 `repl`/`replpass`
@@ -299,42 +297,17 @@ docker exec mysql-master mysql -uroot -prootpass -e "SELECT VERSION(); SHOW DATA
 
 步骤 2：启动从库1并建立复制
 ```bash
-docker compose -f docker-compose.mysql.yml up -d mysql-replica1
-docker exec -i mysql-replica1 mysql -uroot -prootpass <<'SQL'
-CHANGE REPLICATION SOURCE TO
-  SOURCE_HOST='mysql-master',
-  SOURCE_USER='repl',
-  SOURCE_PASSWORD='replpass',
-  SOURCE_AUTO_POSITION=1;
-START REPLICA;
-SQL
-# 验证复制状态（应为 Yes/Yes）
-docker exec mysql-replica1 mysql -uroot -prootpass -e "SHOW REPLICA STATUS\\G" | egrep "Replica_IO_Running:|Replica_SQL_Running:"
-# 验证数据是否已同步 init-row
-docker exec mysql-replica1 mysql -uroot -prootpass -e "SELECT COUNT(*) FROM appdb.items;"
+./scripts/mysql-up-replica.sh 1
 ```
 
 步骤 3：启动从库2并建立复制（同上）
 ```bash
-docker compose -f docker-compose.mysql.yml up -d mysql-replica2
-docker exec -i mysql-replica2 mysql -uroot -prootpass <<'SQL'
-CHANGE REPLICATION SOURCE TO
-  SOURCE_HOST='mysql-master',
-  SOURCE_USER='repl',
-  SOURCE_PASSWORD='replpass',
-  SOURCE_AUTO_POSITION=1;
-START REPLICA;
-SQL
-docker exec mysql-replica2 mysql -uroot -prootpass -e "SHOW REPLICA STATUS\\G" | egrep "Replica_IO_Running:|Replica_SQL_Running:"
+./scripts/mysql-up-replica.sh 2
 ```
 
 步骤 4：写入与校验（主写从读）
 ```bash
-# 主库写入
-docker exec mysql-master   mysql -uroot -prootpass -e "INSERT INTO appdb.items(name) VALUES ('from-master-1'),('from-master-2');"
-# 从库读取（两边行数应一致）
-docker exec mysql-replica1 mysql -uroot -prootpass -e "SELECT COUNT(*) AS r1_rows FROM appdb.items;"
-docker exec mysql-replica2 mysql -uroot -prootpass -e "SELECT COUNT(*) AS r2_rows FROM appdb.items;"
+./scripts/mysql-create-demo.sh
 ```
 
 常见问题与排查
@@ -342,3 +315,8 @@ docker exec mysql-replica2 mysql -uroot -prootpass -e "SELECT COUNT(*) AS r2_row
 - 认证失败：确认主库已创建复制用户（master 初始化脚本），或重置用户口令
 - GTID 未开启：确保 master/replica 配置中 `gtid_mode=ON`、`enforce_gtid_consistency=ON`
 - 主从时钟漂移：容器时间一般跟宿主机同步，如有偏差请校正宿主机时间
+
+附：查看复制状态
+```bash
+./scripts/mysql-status.sh
+```
